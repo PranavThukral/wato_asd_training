@@ -1,3 +1,9 @@
-# map_memory_node:
-#   ros__parameters:
+map_memory_node:
+  ros__parameters:
+    resolution: 0.10
+    width: 400
+    height: 400
+    origin_x: -20.0
+    origin_y: -20.0
+    update_period: 0.20
     

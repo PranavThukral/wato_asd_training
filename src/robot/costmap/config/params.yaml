@@ -1,3 +1,8 @@
-# costmap_node:
-#   ros__parameters:
+costmap_node:
+  ros__parameters:
+    resolution: 0.10
+    width: 200
+    height: 200
+    origin_x: -10.0
+    origin_y: -10.0
 

@@ -1,6 +1,8 @@
 #ifndef ODOMETRY_SPOOF_NODE_HPP_
 #define ODOMETRY_SPOOF_NODE_HPP_
 
+#include <memory>
+
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
@@ -29,7 +31,7 @@ class OdometrySpoofNode : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
 
     // Check if last transform was found
-    bool has_last_transform_;
+    bool has_last_transform_{false};
 
     // Vars to store previous transform
     rclcpp::Time last_time_;
