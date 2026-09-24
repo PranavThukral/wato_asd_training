@@ -297,11 +297,12 @@ bool ControlNode::trajectoryClear(const geometry_msgs::msg::Twist& command,
   const Pose2d start{odom_->pose.pose.position.x, odom_->pose.pose.position.y, start_yaw};
   const double horizon = std::max(collision_horizon_, control_delay_ + 0.1);
   const int samples = std::max(1, static_cast<int>(std::ceil(horizon / collision_step_)));
-  for (int sample = 0; sample <= samples; ++sample) {
-    if (allow_current_occupied && sample == 0) continue;
-    const double t = horizon * static_cast<double>(sample) / samples;
-    const auto predicted = integrate(start, command.linear.x, command.angular.z, t);
-    if (!footprintClear(predicted.x, predicted.y, sample == 0)) return false;
+  if (!allow_current_occupied) {
+    for (int sample = 0; sample <= samples; ++sample) {
+      const double t = horizon * static_cast<double>(sample) / samples;
+      const auto predicted = integrate(start, command.linear.x, command.angular.z, t);
+      if (!footprintClear(predicted.x, predicted.y, sample == 0)) return false;
+    }
   }
   return scanArcClear(odom_->pose.pose, command, allow_current_occupied);
 }
