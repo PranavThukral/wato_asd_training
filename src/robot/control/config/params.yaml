@@ -4,15 +4,15 @@ control_node:
     goal_tolerance: 0.20
     max_linear_speed: 1.20
     max_angular_speed: 1.80
-    emergency_distance: 0.35
+    emergency_distance: 0.30
     input_timeout: 0.75
     path_timeout: 1.00
     map_timeout: 0.75
-    footprint_radius: 1.90
-    collision_horizon: 0.80
-    collision_margin: 0.10
-    control_delay: 0.10
-    braking_deceleration: 1.00
+    footprint_radius: 1.15
+    collision_horizon: 0.65
+    collision_margin: 0.05
+    control_delay: 0.05
+    braking_deceleration: 2.50
     collision_step: 0.025
     linear_acceleration_limit: 2.50
     angular_acceleration_limit: 4.00
