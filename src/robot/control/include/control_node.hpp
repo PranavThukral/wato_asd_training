@@ -26,11 +26,15 @@ class ControlNode : public rclcpp::Node {
     void controlLoop();
     void publishStop();
     bool inputsFresh(const rclcpp::Time& now) const;
-    bool trajectoryClear(const geometry_msgs::msg::Twist& command) const;
+    bool trajectoryClear(const geometry_msgs::msg::Twist& command,
+      bool allow_current_occupied = false) const;
     bool footprintClear(double x, double y, bool allow_unknown) const;
     bool scanCovers(double x, double y) const;
     bool scanArcClear(const geometry_msgs::msg::Pose& pose,
-      const geometry_msgs::msg::Twist& command) const;
+      const geometry_msgs::msg::Twist& command,
+      bool allow_current_occupied = false) const;
+    geometry_msgs::msg::Twist recoveryCommand() const;
+    bool publishRecovery();
 
     robot::ControlCore control_;
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
@@ -65,6 +69,8 @@ class ControlNode : public rclcpp::Node {
     std::chrono::steady_clock::time_point last_scan_receive_{};
     std::chrono::steady_clock::time_point last_map_receive_{};
     std::chrono::steady_clock::time_point last_path_receive_{};
+    int blocked_cycles_{0};
+    int recovery_cycles_{0};
 };
 
 #endif

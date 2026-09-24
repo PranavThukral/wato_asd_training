@@ -245,7 +245,7 @@ bool ControlNode::footprintClear(double x, double y, bool allow_unknown) const
 }
 
 bool ControlNode::scanArcClear(const geometry_msgs::msg::Pose& pose,
-  const geometry_msgs::msg::Twist& command) const
+  const geometry_msgs::msg::Twist& command, bool allow_current_occupied) const
 {
   if (!scan_) return false;
   if (command.linear.x > 1e-6) {
@@ -276,6 +276,7 @@ bool ControlNode::scanArcClear(const geometry_msgs::msg::Pose& pose,
     const double obstacle_x = start.x + range * std::cos(start.yaw + angle);
     const double obstacle_y = start.y + range * std::sin(start.yaw + angle);
     for (int sample = 0; sample <= samples; ++sample) {
+      if (allow_current_occupied && sample == 0) continue;
       const double t = horizon * static_cast<double>(sample) / samples;
       const auto predicted = integrate(start, command.linear.x, command.angular.z, t);
       if (std::hypot(obstacle_x - predicted.x, obstacle_y - predicted.y) <=
@@ -285,7 +286,8 @@ bool ControlNode::scanArcClear(const geometry_msgs::msg::Pose& pose,
   return true;
 }
 
-bool ControlNode::trajectoryClear(const geometry_msgs::msg::Twist& command) const
+bool ControlNode::trajectoryClear(const geometry_msgs::msg::Twist& command,
+  bool allow_current_occupied) const
 {
   if (!odom_ || !map_ || !scan_) return false;
   const double start_yaw = std::atan2(2.0 * (odom_->pose.pose.orientation.w * odom_->pose.pose.orientation.z +
@@ -296,16 +298,49 @@ bool ControlNode::trajectoryClear(const geometry_msgs::msg::Twist& command) cons
   const double horizon = std::max(collision_horizon_, control_delay_ + 0.1);
   const int samples = std::max(1, static_cast<int>(std::ceil(horizon / collision_step_)));
   for (int sample = 0; sample <= samples; ++sample) {
+    if (allow_current_occupied && sample == 0) continue;
     const double t = horizon * static_cast<double>(sample) / samples;
     const auto predicted = integrate(start, command.linear.x, command.angular.z, t);
     if (!footprintClear(predicted.x, predicted.y, sample == 0)) return false;
   }
-  return scanArcClear(odom_->pose.pose, command);
+  return scanArcClear(odom_->pose.pose, command, allow_current_occupied);
+}
+
+geometry_msgs::msg::Twist ControlNode::recoveryCommand() const
+{
+  geometry_msgs::msg::Twist command;
+  command.linear.x = -0.25;
+  double left_clearance = std::numeric_limits<double>::infinity();
+  double right_clearance = std::numeric_limits<double>::infinity();
+  for (std::size_t i = 0; i < scan_->ranges.size(); ++i) {
+    const double angle = scan_->angle_min + static_cast<double>(i) * scan_->angle_increment;
+    const double range = scan_->ranges[i];
+    if (!std::isfinite(range) || range < scan_->range_min || range >= scan_->range_max) continue;
+    if (angle > 0.25 && angle < 1.40) left_clearance = std::min(left_clearance, range);
+    if (angle < -0.25 && angle > -1.40) right_clearance = std::min(right_clearance, range);
+  }
+  if (left_clearance > right_clearance) {
+    command.angular.z = 0.80;
+  } else {
+    command.angular.z = -0.80;
+  }
+  return command;
+}
+
+bool ControlNode::publishRecovery()
+{
+  if (!scan_) return false;
+  const auto recovery = recoveryCommand();
+  if (!trajectoryClear(recovery, true)) return false;
+  previous_command_ = recovery;
+  previous_command_time_ = std::chrono::steady_clock::now();
+  cmd_pub_->publish(recovery);
+  return true;
 }
 
 void ControlNode::controlLoop()
 {
-  if (!odom_ || !scan_ || !map_ || !control_.validPath()) { publishStop(); return; }
+  if (!odom_ || !scan_ || !map_) { publishStop(); return; }
   const rclcpp::Time now = get_clock()->now();
   if (!inputsFresh(now)) { publishStop(); return; }
   if (map_->header.frame_id.empty() ||
@@ -314,13 +349,27 @@ void ControlNode::controlLoop()
     publishStop();
     return;
   }
+  if (!control_.validPath()) {
+    if (!footprintClear(odom_->pose.pose.position.x, odom_->pose.pose.position.y, true)) {
+      if (!publishRecovery()) publishStop();
+    } else {
+      publishStop();
+    }
+    return;
+  }
+  bool emergency = false;
   for (std::size_t i = 0; i < scan_->ranges.size(); ++i) {
     const double angle = scan_->angle_min + static_cast<double>(i) * scan_->angle_increment;
     const double range = scan_->ranges[i];
     if (std::isfinite(range) && range >= scan_->range_min && range < emergency_distance_ && std::abs(angle) < 0.65) {
-      publishStop();
-      return;
+      emergency = true;
+      break;
     }
+  }
+  if (emergency) {
+    ++blocked_cycles_;
+    if (blocked_cycles_ < 3 || !publishRecovery()) publishStop();
+    return;
   }
   auto command = control_.command(odom_->pose.pose);
   if (!std::isfinite(command.linear.x) || !std::isfinite(command.angular.z)) {
@@ -343,8 +392,26 @@ void ControlNode::controlLoop()
     return;
   }
   if (!trajectoryClear(command)) {
-    publishStop();
-    return;
+    ++blocked_cycles_;
+    if (blocked_cycles_ < 3) {
+      publishStop();
+      return;
+    }
+    command = recoveryCommand();
+    if (!trajectoryClear(command, true)) {
+      publishStop();
+      return;
+    }
+    ++recovery_cycles_;
+    if (recovery_cycles_ > 20) {
+      blocked_cycles_ = 0;
+      recovery_cycles_ = 0;
+      publishStop();
+      return;
+    }
+  } else {
+    blocked_cycles_ = 0;
+    recovery_cycles_ = 0;
   }
   previous_command_ = command;
   previous_command_time_ = steady_now;
