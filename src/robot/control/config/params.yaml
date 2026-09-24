@@ -1,9 +1,9 @@
 control_node:
   ros__parameters:
-    lookahead_distance: 0.80
+    lookahead_distance: 1.00
     goal_tolerance: 0.20
-    max_linear_speed: 0.80
-    max_angular_speed: 1.20
+    max_linear_speed: 1.20
+    max_angular_speed: 1.80
     emergency_distance: 0.35
     input_timeout: 0.75
     path_timeout: 1.00
@@ -14,6 +14,6 @@ control_node:
     control_delay: 0.10
     braking_deceleration: 1.00
     collision_step: 0.025
-    linear_acceleration_limit: 1.50
-    angular_acceleration_limit: 3.00
+    linear_acceleration_limit: 2.50
+    angular_acceleration_limit: 4.00
     
