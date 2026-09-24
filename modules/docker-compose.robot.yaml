@@ -11,6 +11,9 @@ services:
     image: "${ROBOT_IMAGE:?}:${TAG}"
     profiles:
       - deploy
+    volumes:
+      - ../src/robot/control/config/params.yaml:/opt/watonomous/control/share/control/config/params.yaml:ro
+      - ../src/robot/planner/config/params.yaml:/opt/watonomous/planner/share/planner/config/params.yaml:ro
     command: /bin/bash -c "ros2 launch bringup_robot robot.launch.py"
   
   robot_dev:
